@@ -1,7 +1,22 @@
 {
-  "name": "ai-agent",
-  "version": "0.1.0",
-  "private": true,
+  "name": "ai-agent-calendar",
+  "version": "1.0.0",
+  "description": "議事録を入力するだけでネクストアクションを抽出し、必要な会議を自動設定するAIエージェント",
+  "keywords": [
+    "ai",
+    "calendar",
+    "meeting",
+    "agent",
+    "nextjs",
+    "mastra"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/ai-agent-calendar.git"
+  },
+  "private": false,
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
