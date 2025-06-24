@@ -185,6 +185,155 @@ npm run format:check
 2. 環境変数`OPENAI_API_KEY`を設定
 3. デプロイ
 
+### AWS Amplify
+
+AWS Amplifyを使用してデプロイする方法：
+
+#### 1. GitHubリポジトリからのデプロイ
+
+1. **AWS Amplifyコンソールにアクセス**
+
+   - [AWS Amplify Console](https://console.aws.amazon.com/amplify/)にログイン
+
+2. **新しいアプリの作成**
+
+   - 「New app」→「Host web app」をクリック
+   - GitHubを選択してリポジトリを接続
+
+3. **ビルド設定の構成**
+   - Amplifyが自動的にNext.jsを検出
+   - カスタムビルド設定が必要な場合は`amplify.yml`を作成：
+
+```yaml
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - npm ci
+    build:
+      commands:
+        - npm run build
+  artifacts:
+    baseDirectory: .next
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - node_modules/**/*
+      - .next/cache/**/*
+```
+
+4. **環境変数の設定**
+
+   - App settings → Environment variables
+   - `OPENAI_API_KEY`を追加
+
+5. **デプロイの実行**
+   - 「Save and deploy」をクリック
+
+#### 2. Amplify CLIを使用したデプロイ
+
+1. **Amplify CLIのインストール**
+
+```bash
+npm install -g @aws-amplify/cli
+```
+
+2. **Amplifyの初期化**
+
+```bash
+amplify init
+```
+
+設定例：
+
+```
+? Enter a name for the project: ai-agent-calendar
+? Initialize the project with the above configuration? Yes
+? Select the authentication method you want to use: AWS profile
+? Please choose the profile you want to use: default
+```
+
+3. **ホスティングの追加**
+
+```bash
+amplify add hosting
+```
+
+選択肢：
+
+```
+? Select the plugin module to execute: Amazon CloudFront and S3
+? Select the environment setup: PROD (S3 with CloudFront using HTTPS)
+? hosting bucket name: ai-agent-calendar-hosting
+```
+
+4. **環境変数の設定**
+
+```bash
+amplify env add
+```
+
+または、AWS Systems Manager Parameter Storeを使用：
+
+```bash
+# パラメータストアに環境変数を保存
+aws ssm put-parameter \
+  --name "/amplify/ai-agent-calendar/main/OPENAI_API_KEY" \
+  --value "your_openai_api_key_here" \
+  --type "SecureString"
+```
+
+5. **デプロイの実行**
+
+```bash
+amplify publish
+```
+
+#### 3. 継続的デプロイメントの設定
+
+1. **ブランチの自動デプロイ**
+
+   - Amplifyコンソールで「Branch settings」を設定
+   - mainブランチへのプッシュで自動デプロイ
+
+2. **プルリクエストプレビュー**
+   - 「Previews」タブでプルリクエストごとのプレビュー環境を有効化
+
+#### 4. カスタムドメインの設定
+
+1. **ドメインの追加**
+
+   - App settings → Domain management
+   - 「Add domain」をクリック
+
+2. **DNS設定**
+   - Route 53を使用する場合は自動設定
+   - 外部DNSの場合はCNAMEレコードを手動設定
+
+#### 5. パフォーマンス最適化
+
+1. **キャッシュ設定**
+
+   - CloudFrontの設定でキャッシュポリシーを最適化
+
+2. **環境変数の暗号化**
+   - 本番環境では機密情報をAWS Secrets Managerで管理
+
+```bash
+# Secrets Managerにシークレットを作成
+aws secretsmanager create-secret \
+  --name "ai-agent-calendar/openai-key" \
+  --secret-string "your_openai_api_key_here"
+```
+
+#### トラブルシューティング
+
+- **ビルドエラー**: `amplify.yml`でNode.jsバージョンを指定
+- **環境変数が反映されない**: デプロイ後にアプリを再起動
+- **カスタムドメインが機能しない**: DNS伝播に時間がかかる場合があります（最大48時間）
+
 ### その他のプラットフォーム
 
 - **Netlify**: `npm run build`後に`out`フォルダをデプロイ
