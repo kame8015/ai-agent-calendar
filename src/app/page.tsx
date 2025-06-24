@@ -339,8 +339,23 @@ ${analysisResult.message}
                                     key={index}
                                     className="bg-gray-50 p-2 rounded text-sm"
                                   >
-                                    <div className="font-medium">
-                                      {meeting.title}
+                                    <div className="flex justify-between items-start mb-2">
+                                      <div className="font-medium">
+                                        {meeting.title}
+                                      </div>
+                                      <button
+                                        onClick={() =>
+                                          handleCreateMeeting(meeting)
+                                        }
+                                        disabled={
+                                          creatingMeeting === meeting.title
+                                        }
+                                        className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                      >
+                                        {creatingMeeting === meeting.title
+                                          ? '作成中...'
+                                          : '会議を作成'}
+                                      </button>
                                     </div>
                                     <div className="text-gray-600">
                                       {meeting.purpose} | 参加者:{' '}
@@ -473,7 +488,7 @@ ${analysisResult.message}
                           <button
                             onClick={() => handleCreateMeeting(meeting)}
                             disabled={creatingMeeting === meeting.title}
-                            className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                           >
                             {creatingMeeting === meeting.title
                               ? '作成中...'

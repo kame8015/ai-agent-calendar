@@ -290,31 +290,113 @@ export async function processChatRequest(
 `
       : '';
 
-    const result = await calendarAgent.generate([
-      {
-        role: 'user',
-        content: `以下のユーザー要求を処理してください：
+    const result = await calendarAgent.generate(
+      [
+        {
+          role: 'user',
+          content: `以下のユーザー要求を処理してください：
 
 ${contextInfo}
 
 ユーザー要求: "${userRequest}"
 
-以下のような要求の場合は、具体的な処理を行ってください：
-- 会議時間の変更：会議の詳細を更新
-- 参加者の変更：参加者リストを更新
-- 日程の変更：新しい日程を提案
-- 会議作成：具体的な会議作成の準備
-- スケジュール確認：空き時間のチェック
+以下のような要求の場合は、会議の詳細を更新してJSONで返してください（実際の会議作成は行わない）：
+- 会議時間の変更：estimatedDurationを更新
+- 参加者の変更：requiredAttendeesを更新  
+- 日程の変更：suggestedDateを更新
+- 会議タイトルや目的の変更：titleやpurposeを更新
 
-応答は日本語で、ユーザーの要求を理解した上で適切なアクションを提案してください。
-具体的な変更があった場合は、更新された情報を含めて応答してください。`,
-      },
-    ]);
+更新がある場合は、更新された会議情報を含む完全な分析結果を構造化出力で返してください。
+更新がない場合は、現在の情報をそのまま返してください。
 
-    return {
-      message: result.text || 'ご要求を処理しました。',
-      actionTaken: 'chat_response',
-    };
+応答は日本語で、ユーザーの要求を理解した上で適切な変更内容を説明してください。`,
+        },
+      ],
+      {
+        output: {
+          type: 'object',
+          properties: {
+            message: { type: 'string' },
+            hasUpdates: { type: 'boolean' },
+            updatedAnalysis: {
+              type: 'object',
+              properties: {
+                nextActions: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      action: { type: 'string' },
+                      responsible: { type: 'array', items: { type: 'string' } },
+                      deadline: { type: 'string' },
+                      meetingRequired: { type: 'boolean' },
+                      priority: { type: 'string', enum: ['高', '中', '低'] },
+                      department: { type: 'array', items: { type: 'string' } },
+                    },
+                    required: [
+                      'action',
+                      'responsible',
+                      'deadline',
+                      'meetingRequired',
+                      'priority',
+                    ],
+                  },
+                },
+                suggestedMeetings: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      title: { type: 'string' },
+                      purpose: { type: 'string' },
+                      requiredAttendees: {
+                        type: 'array',
+                        items: { type: 'string' },
+                      },
+                      estimatedDuration: { type: 'number' },
+                      suggestedDate: { type: 'string' },
+                      department: { type: 'array', items: { type: 'string' } },
+                    },
+                    required: [
+                      'title',
+                      'purpose',
+                      'requiredAttendees',
+                      'estimatedDuration',
+                      'suggestedDate',
+                    ],
+                  },
+                },
+                message: { type: 'string' },
+              },
+              required: ['nextActions', 'suggestedMeetings', 'message'],
+            },
+          },
+          required: ['message', 'hasUpdates'],
+        },
+      }
+    );
+
+    if (result.object) {
+      const response = result.object as {
+        message: string;
+        hasUpdates: boolean;
+        updatedAnalysis?: MeetingAnalysisResult;
+      };
+
+      return {
+        message: response.message,
+        updatedAnalysis: response.hasUpdates
+          ? response.updatedAnalysis
+          : currentAnalysis,
+        actionTaken: 'chat_response',
+      };
+    } else {
+      return {
+        message: 'ご要求を処理しました。',
+        updatedAnalysis: currentAnalysis,
+        actionTaken: 'chat_response',
+      };
+    }
   } catch (error) {
     console.error('チャット要求処理エラー:', error);
     throw new Error('チャット要求の処理に失敗しました。');
