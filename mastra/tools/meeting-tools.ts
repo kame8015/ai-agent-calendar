@@ -42,7 +42,7 @@ export const extractNextActionsTool = createTool({
     const mockNextActions = [
       {
         action: '新機能の仕様書作成',
-        responsible: ['田中', '佐藤'],
+        responsible: ['開発担当者', 'プロジェクトマネージャー'],
         deadline: '2024-02-15',
         meetingRequired: true,
         priority: '高' as const,
@@ -50,7 +50,7 @@ export const extractNextActionsTool = createTool({
       },
       {
         action: '予算承認の手続き',
-        responsible: ['山田'],
+        responsible: ['経理担当者'],
         deadline: '2024-02-10',
         meetingRequired: true,
         priority: '高' as const,
@@ -62,7 +62,11 @@ export const extractNextActionsTool = createTool({
       {
         title: '新機能仕様検討会議',
         purpose: '新機能の詳細仕様を決定するため',
-        requiredAttendees: ['田中', '佐藤', '鈴木'],
+        requiredAttendees: [
+          '開発担当者',
+          'プロジェクトマネージャー',
+          'システムアーキテクト',
+        ],
         estimatedDuration: 90,
         suggestedDate: '2024-02-12',
         department: ['開発', '企画'],
@@ -70,7 +74,7 @@ export const extractNextActionsTool = createTool({
       {
         title: '予算承認会議',
         purpose: 'プロジェクト予算の承認を得るため',
-        requiredAttendees: ['山田', '部長', '経理担当'],
+        requiredAttendees: ['経理担当者', '部門長', '経理責任者'],
         estimatedDuration: 60,
         suggestedDate: '2024-02-08',
         department: ['経理', '管理'],

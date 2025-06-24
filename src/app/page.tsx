@@ -12,6 +12,11 @@ import {
   AvailabilityResult,
   MeetingCreationResult,
 } from './actions';
+import {
+  getOrganizationUsers,
+  getAccessibleCalendarUsers,
+  OutlookUser,
+} from './outlook-actions';
 
 interface ChatMessage {
   id: string;
@@ -36,6 +41,12 @@ export default function Home() {
   const [chatInput, setChatInput] = useState('');
   const [isChatMode, setIsChatMode] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
+
+  // Outlookユーザー関連のstate
+  const [outlookUsers, setOutlookUsers] = useState<OutlookUser[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [showUserSelection, setShowUserSelection] = useState(false);
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
 
   // 従来の完全自動処理（現在は使用していないが将来的に使用可能）
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -144,8 +155,10 @@ ${analysisResult.message}
     setChatLoading(true);
 
     try {
-      // 最新の分析データを取得
-      const latestAnalysis = chatMessages.find(msg => msg.data)?.data;
+      // 最新の分析データを取得（逆順で検索して最後のdataを持つメッセージを取得）
+      const latestAnalysis = [...chatMessages]
+        .reverse()
+        .find(msg => msg.data)?.data;
 
       // 新しいserver actionを使用してチャット要求を処理
       const result = await processChatRequest(currentInput, latestAnalysis);
@@ -227,10 +240,37 @@ ${analysisResult.message}
     }
   };
 
+  // Outlookユーザー一覧を取得
+  const handleLoadOutlookUsers = async () => {
+    setLoadingUsers(true);
+    setError(null);
+
+    try {
+      const users = await getOrganizationUsers();
+      setOutlookUsers(users);
+      setShowUserSelection(true);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'ユーザー一覧の取得に失敗しました。'
+      );
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  // ユーザー選択の切り替え
+  const handleUserSelection = (email: string) => {
+    setSelectedUsers(prev =>
+      prev.includes(email) ? prev.filter(e => e !== email) : [...prev, email]
+    );
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-lg shadow-md p-6">
+    <div className="h-screen bg-gray-50 overflow-hidden">
+      <div className="h-full max-w-4xl mx-auto p-4">
+        <div className="bg-white rounded-lg shadow-md p-6 h-full flex flex-col">
           <h1 className="text-2xl font-bold text-gray-900 mb-6 text-center">
             AI会議設定エージェント
           </h1>
@@ -249,7 +289,16 @@ ${analysisResult.message}
                   value={meetingMinutes}
                   onChange={e => setMeetingMinutes(e.target.value)}
                   className="w-full h-40 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-400"
-                  placeholder="議事録の内容をここに入力してください..."
+                  placeholder="議事録の内容をここに入力してください...
+
+例：
+2024年2月5日 プロジェクト会議
+参加者: 田中、佐藤、鈴木
+議題: 新機能開発について
+決定事項:
+- 新機能の仕様書を田中と佐藤で作成する（期限: 2/15）
+- 予算承認を山田が手続きする（期限: 2/10）
+- 次回、仕様検討会議を開催予定"
                   disabled={isLoading}
                 />
               </div>
@@ -271,11 +320,81 @@ ${analysisResult.message}
                   {isLoading ? '処理中...' : 'チャットで会議設定'}
                 </button>
               </div>
+
+              {/* Outlookユーザー選択セクション */}
+              <div className="mb-6 p-4 bg-gray-50 rounded-md">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-medium text-gray-900">
+                    📧 Outlookユーザー選択
+                  </h3>
+                  <button
+                    onClick={handleLoadOutlookUsers}
+                    disabled={loadingUsers}
+                    className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    {loadingUsers ? '読み込み中...' : '組織ユーザーを取得'}
+                  </button>
+                </div>
+
+                {showUserSelection && (
+                  <div>
+                    <p className="text-sm text-gray-600 mb-3">
+                      会議に参加可能なユーザーを選択してください（
+                      {selectedUsers.length}名選択中）
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-60 overflow-y-auto">
+                      {outlookUsers.map(user => (
+                        <div
+                          key={user.id}
+                          className={`p-3 border rounded-md cursor-pointer transition-colors ${
+                            selectedUsers.includes(user.email)
+                              ? 'bg-purple-100 border-purple-500'
+                              : 'bg-white border-gray-300 hover:border-purple-300'
+                          }`}
+                          onClick={() => handleUserSelection(user.email)}
+                        >
+                          <div className="flex items-center">
+                            <div
+                              className={`w-3 h-3 rounded-full mr-2 ${
+                                selectedUsers.includes(user.email)
+                                  ? 'bg-purple-500'
+                                  : 'bg-gray-300'
+                              }`}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                {user.name}
+                              </p>
+                              <p className="text-xs text-gray-500 truncate">
+                                {user.email}
+                              </p>
+                              {user.jobTitle && (
+                                <p className="text-xs text-gray-400 truncate">
+                                  {user.jobTitle}{' '}
+                                  {user.department && `• ${user.department}`}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {selectedUsers.length > 0 && (
+                      <div className="mt-3 p-2 bg-purple-50 rounded border">
+                        <p className="text-sm text-purple-800">
+                          <strong>選択中:</strong> {selectedUsers.join(', ')}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </>
           ) : (
-            <div className="space-y-4">
+            <div className="flex-1 flex flex-col">
               {/* チャット履歴 */}
-              <div className="h-96 overflow-y-auto border border-gray-200 rounded-md p-4 bg-gray-50">
+              <div className="h-[calc(100vh-250px)] overflow-y-auto border border-gray-200 rounded-md p-4 bg-gray-50 mb-4">
                 {chatMessages.map(message => (
                   <div
                     key={message.id}
@@ -284,7 +403,7 @@ ${analysisResult.message}
                     }`}
                   >
                     <div
-                      className={`inline-block max-w-3xl p-3 rounded-lg ${
+                      className={`inline-block max-w-3xl p-3 rounded-lg text-left ${
                         message.type === 'user'
                           ? 'bg-blue-600 text-white'
                           : 'bg-white text-gray-900 border'
@@ -412,7 +531,7 @@ ${analysisResult.message}
                   setChatMessages([]);
                   setChatInput('');
                 }}
-                className="w-full bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600"
+                className="w-full bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600 mt-4"
               >
                 新しい議事録で開始
               </button>
@@ -586,25 +705,6 @@ ${analysisResult.message}
               )}
             </div>
           )}
-        </div>
-
-        {/* 使用例 */}
-        <div className="mt-8 bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">使用例</h2>
-          <div className="bg-gray-50 p-4 rounded-md">
-            <p className="text-sm text-gray-700 mb-2">
-              <strong>議事録の例:</strong>
-            </p>
-            <div className="text-sm text-gray-600 space-y-1">
-              <p>2024年2月5日 プロジェクト会議</p>
-              <p>参加者: 田中、佐藤、鈴木</p>
-              <p>議題: 新機能開発について</p>
-              <p>決定事項:</p>
-              <p>- 新機能の仕様書を田中と佐藤で作成する（期限: 2/15）</p>
-              <p>- 予算承認を山田が手続きする（期限: 2/10）</p>
-              <p>- 次回、仕様検討会議を開催予定</p>
-            </div>
-          </div>
         </div>
       </div>
     </div>

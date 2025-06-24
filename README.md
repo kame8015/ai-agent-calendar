@@ -76,9 +76,51 @@ pnpm install
 
 ```env
 OPENAI_API_KEY=your_openai_api_key_here
+
+# Microsoft Graph API (Outlook Calendar Integration)
+MICROSOFT_CLIENT_ID=your_microsoft_client_id_here
+MICROSOFT_CLIENT_SECRET=your_microsoft_client_secret_here
+NEXTAUTH_URL=http://localhost:3000
+
+# Optional: Microsoft Tenant ID (for single-tenant applications)
+MICROSOFT_TENANT_ID=your_tenant_id_here
 ```
 
-4. **開発サーバーの起動**
+### Microsoft Graph API の設定
+
+Outlookカレンダー統合を有効にするには、Azure Active Directoryでアプリケーションを登録する必要があります：
+
+1. **Azure ポータルにアクセス**
+
+   - [Azure Portal](https://portal.azure.com)にログイン
+   - 「Azure Active Directory」→「アプリの登録」→「新規登録」
+
+2. **アプリケーションの登録**
+
+   - 名前: `AI会議設定エージェント`
+   - サポートされるアカウントの種類: `この組織ディレクトリのみのアカウント`
+   - リダイレクトURI: `http://localhost:3000/auth/microsoft`
+
+3. **API アクセス許可の設定**
+   以下のMicrosoft Graph権限を追加：
+
+   - `User.Read` (委任)
+   - `Calendars.Read` (委任)
+   - `Calendars.Read.Shared` (委任)
+   - `User.Read.All` (委任)
+
+4. **クライアントシークレットの作成**
+
+   - 「証明書とシークレット」→「新しいクライアントシークレット」
+   - 説明: `AI Calendar Agent Secret`
+   - 有効期限: `24か月`
+
+5. **環境変数の設定**
+
+   - `MICROSOFT_CLIENT_ID`: アプリケーション（クライアント）ID
+   - `MICROSOFT_CLIENT_SECRET`: 作成したクライアントシークレットの値
+
+6. **開発サーバーの起動**
 
 ```bash
 npm run dev
