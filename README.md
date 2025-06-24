@@ -7,6 +7,104 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=for-the-badge&logo=typescript)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38B2AC?style=for-the-badge&logo=tailwind-css)
 
+## 🚧 開発状況・TODO
+
+### ✅ 実装済み機能
+
+- **議事録分析**: LLM（GPT-4o-mini）による高品質な議事録解析
+- **スケジュール統合**: 参加者の実際のスケジュールを考慮した会議時刻提案
+- **チャット機能**: AIとの対話による動的な会議設定
+- **モックシステム**: Outlookなしでも完全動作するモック機能（8名のダミーユーザー）
+- **UI/UX**: レスポンシブデザイン、スクロール最適化済み
+- **エラーハンドリング**: 堅牢なエラー処理とフォールバック機能
+
+### 🎯 優先度: 高（次のスプリント）
+
+#### 1. **実際のOutlook連携**
+
+- **概要**: Microsoft Graph APIとの実際の連携
+- **詳細**:
+  - OAuth2認証フローの完成 (`src/app/auth/microsoft/route.ts`)
+  - 実際のカレンダーデータ取得
+  - モックからリアルAPIへの切り替え機能
+- **ファイル**: `src/app/outlook-actions.ts`, `src/lib/microsoft-graph.ts`
+- **推定工数**: 3-5日
+
+#### 2. **会議作成機能の実装**
+
+- **概要**: 提案された会議を実際にOutlookカレンダーに作成
+- **詳細**:
+  - Microsoft Graph APIでの会議作成
+  - 参加者への招待送信
+  - 会議室予約機能（オプション）
+- **ファイル**: `src/app/actions.ts` (createMeeting関数)
+- **推定工数**: 2-3日
+
+#### 3. **ユーザー認証・権限管理**
+
+- **概要**: セキュアなユーザー認証システム
+- **詳細**:
+  - NextAuth.jsの実装
+  - ユーザーセッション管理
+  - カレンダーアクセス権限の確認
+- **新規ファイル**: `src/app/api/auth/[...nextauth]/route.ts`
+- **推定工数**: 2-3日
+
+### 🔧 優先度: 中（次々スプリント）
+
+#### 4. **設定・カスタマイズ機能**
+
+- **概要**: ユーザー個別設定とカスタマイズ
+- **詳細**:
+  - 業務時間設定（現在9:00-18:00固定）
+  - 会議時間デフォルト設定
+  - 通知設定
+  - 言語設定（現在日本語のみ）
+- **新規ファイル**: `src/app/settings/page.tsx`
+- **推定工数**: 3-4日
+
+#### 5. **履歴・ダッシュボード機能**
+
+- **概要**: 過去の分析結果と会議履歴の管理
+- **詳細**:
+  - 議事録分析履歴の保存
+  - 作成した会議の追跡
+    <!-- - 統計ダッシュボード -->
+    <!-- - エクスポート機能 -->
+- **新規ファイル**: `src/app/history/`, `src/app/dashboard/`
+- **推定工数**: 4-5日
+
+#### 6. **高度なスケジューリング**
+
+- **概要**: より柔軟なスケジューリング機能
+- **詳細**:
+  - 複数日程候補の提示
+  - 会議室の空き状況確認
+  - タイムゾーン対応
+  - 繰り返し会議の設定
+- **ファイル**: `src/app/outlook-actions.ts` (suggestMeetingTimes拡張)
+- **推定工数**: 3-4日
+
+### 🐛 既知の技術的課題
+
+1. **パフォーマンス**: 大量の会議データでの処理速度最適化が必要
+2. **エラーハンドリング**: Microsoft Graph APIのレート制限対応
+3. **テスト**: ユニットテスト・統合テストの整備
+4. **セキュリティ**: APIキーの適切な管理、XSS/CSRF対策
+
+### 📋 開発ガイドライン
+
+- **コード品質**: TypeScript strict mode, ESLint, Prettier使用
+- **ブランチ**: `feature/機能名`, `fix/修正内容` 形式
+- **レビュー**: すべてのPRは最低1名のレビュー必須
+- **テスト**: 新機能追加時はテストも同時実装
+
+### 🔗 関連リンク
+
+- [Microsoft Graph API ドキュメント](https://docs.microsoft.com/en-us/graph/)
+- [Mastra AI ドキュメント](https://mastra.ai/docs)
+- [Next.js App Router ガイド](https://nextjs.org/docs/app)
+
 ## ✨ 主な機能
 
 ### 📋 議事録分析
