@@ -218,29 +218,38 @@ function generateMockCalendarEvents(
     // 土日をスキップ
     if (dayOfWeek === 0 || dayOfWeek === 6) continue;
 
-    // ランダムに会議を配置（全ての会議が毎日あるわけではない）
+    // より確実に会議を配置（ランダム性を調整）
     patterns.forEach((pattern, index) => {
-      // 50%の確率で会議を配置
-      if (Math.random() > 0.5) return;
+      // 70%の確率で会議を配置（より高い確率）
+      if (Math.random() > 0.3) {
+        const meetingDate = new Date(d);
+        const [hours, minutes] = pattern.time.split(':').map(Number);
+        meetingDate.setHours(hours, minutes, 0, 0);
 
-      const meetingDate = new Date(d);
-      const [hours, minutes] = pattern.time.split(':').map(Number);
-      meetingDate.setHours(hours, minutes, 0, 0);
+        const endTime = new Date(
+          meetingDate.getTime() + pattern.duration * 60 * 1000
+        );
 
-      const endTime = new Date(
-        meetingDate.getTime() + pattern.duration * 60 * 1000
-      );
-
-      events.push({
-        id: `event_${userId}_${d.toISOString().split('T')[0]}_${index}`,
-        title: pattern.title,
-        start: meetingDate.toISOString(),
-        end: endTime.toISOString(),
-        attendees: pattern.attendees,
-        organizer: MOCK_USERS.find(u => u.id === userId)?.email || '',
-      });
+        events.push({
+          id: `event_${userId}_${d.toISOString().split('T')[0]}_${index}`,
+          title: pattern.title,
+          start: meetingDate.toISOString(),
+          end: endTime.toISOString(),
+          attendees: pattern.attendees,
+          organizer: MOCK_USERS.find(u => u.id === userId)?.email || '',
+        });
+      }
     });
   }
+
+  console.log(
+    `モック: ${userId}の会議イベント ${events.length}件を生成しました`
+  );
+  events.forEach(event => {
+    console.log(
+      `  - ${event.title}: ${new Date(event.start).toLocaleString()} - ${new Date(event.end).toLocaleString()}`
+    );
+  });
 
   return events.sort(
     (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
@@ -333,13 +342,38 @@ export async function analyzeUserAvailability(
 ): Promise<UserAvailability[]> {
   await new Promise(resolve => setTimeout(resolve, 800));
 
-  console.log(`モック: ${userEmails.length}人のユーザーの空き時間を分析中...`);
+  console.log(`モック: ${userEmails.length}人のユーザーの空き状況を分析中...`);
 
   const userAvailabilities: UserAvailability[] = [];
 
-  for (const email of userEmails) {
-    const user = MOCK_USERS.find(u => u.email === email);
-    if (!user) continue;
+  for (const emailOrName of userEmails) {
+    // 参加者名が「名前（役職）」形式の場合、メールアドレスに変換
+    let email = emailOrName;
+    let userName = emailOrName;
+
+    if (emailOrName.includes('（') && emailOrName.includes('）')) {
+      // 「田中太郎（プロジェクトマネージャー）」形式から名前を抽出
+      const nameMatch = emailOrName.match(/^([^（]+)/);
+      if (nameMatch) {
+        const extractedName = nameMatch[1].trim();
+        // 名前からメールアドレスを検索
+        const matchedUser = MOCK_USERS.find(
+          user => user.name === extractedName
+        );
+        if (matchedUser) {
+          email = matchedUser.email;
+          userName = matchedUser.name;
+        }
+      }
+    }
+
+    const user = MOCK_USERS.find(u => u.email === email || u.name === userName);
+    if (!user) {
+      console.warn(`ユーザーが見つかりません: ${emailOrName}`);
+      continue;
+    }
+
+    console.log(`${user.name} (${user.email}) の空き状況を分析中...`);
 
     // モックイベントを取得
     const events = generateMockCalendarEvents(user.id, startDate, endDate);
@@ -359,7 +393,7 @@ export async function analyzeUserAvailability(
     );
 
     userAvailabilities.push({
-      email,
+      email: user.email,
       name: user.name,
       availableSlots,
       busySlots,
@@ -391,6 +425,7 @@ export async function suggestMeetingTimes(
   console.log(
     `モック: ${attendeeEmails.length}人の参加者で${durationMinutes}分の会議時間を提案中...`
   );
+  console.log('参加者:', attendeeEmails);
 
   const userAvailabilities = await analyzeUserAvailability(
     accessToken,
@@ -399,17 +434,44 @@ export async function suggestMeetingTimes(
     endDate
   );
 
+  console.log('各ユーザーの空き状況:');
+  userAvailabilities.forEach(user => {
+    console.log(`  ${user.name} (${user.email}):`);
+    console.log(`    忙しい時間: ${user.busySlots.length}件`);
+    user.busySlots.forEach(busy => {
+      console.log(
+        `      - ${busy.title}: ${new Date(busy.start).toLocaleString()} - ${new Date(busy.end).toLocaleString()}`
+      );
+    });
+    console.log(`    空き時間: ${user.availableSlots.length}件`);
+    user.availableSlots.slice(0, 3).forEach(slot => {
+      console.log(
+        `      - ${new Date(slot.start).toLocaleString()} - ${new Date(slot.end).toLocaleString()}`
+      );
+    });
+  });
+
   // 全員が空いている時間帯を見つける
   const commonAvailableSlots = findCommonAvailableSlots(
     userAvailabilities,
     durationMinutes
   );
 
+  console.log(`共通の空き時間: ${commonAvailableSlots.length}件`);
+  commonAvailableSlots.forEach((slot, index) => {
+    console.log(
+      `  ${index + 1}. ${new Date(slot.start).toLocaleString()} - ${new Date(slot.end).toLocaleString()} (信頼度: ${Math.round(slot.confidence * 100)}%, 参加可能: ${slot.availableAttendees.length}名)`
+    );
+  });
+
   return commonAvailableSlots.map(slot => ({
     start: slot.start,
     end: slot.end,
     confidence: slot.confidence,
-    availableAttendees: slot.availableAttendees,
+    availableAttendees: slot.availableAttendees.map(email => {
+      const user = MOCK_USERS.find(u => u.email === email);
+      return user ? `${user.name}（${user.jobTitle}）` : email;
+    }),
   }));
 }
 
@@ -495,48 +557,121 @@ function findCommonAvailableSlots(
     availableAttendees: string[];
   }> = [];
 
-  // 全ユーザーの空き時間を統合して共通部分を見つける
   if (userAvailabilities.length === 0) return commonSlots;
 
-  const baseUser = userAvailabilities[0];
+  // 全ユーザーの空き時間スロットを収集
+  const allAvailableSlots: Array<{
+    start: Date;
+    end: Date;
+    userEmail: string;
+  }> = [];
 
-  for (const slot of baseUser.availableSlots) {
-    const slotStart = new Date(slot.start);
-    const slotEnd = new Date(slot.end);
-    const slotDuration =
-      (slotEnd.getTime() - slotStart.getTime()) / (1000 * 60);
-
-    if (slotDuration < durationMinutes) continue;
-
-    const availableAttendees = [baseUser.email];
-
-    // 他のユーザーもこの時間帯が空いているかチェック
-    for (let i = 1; i < userAvailabilities.length; i++) {
-      const otherUser = userAvailabilities[i];
-      const isAvailable = otherUser.availableSlots.some(otherSlot => {
-        const otherStart = new Date(otherSlot.start);
-        const otherEnd = new Date(otherSlot.end);
-        return otherStart <= slotStart && otherEnd >= slotEnd;
+  userAvailabilities.forEach(user => {
+    user.availableSlots.forEach(slot => {
+      allAvailableSlots.push({
+        start: new Date(slot.start),
+        end: new Date(slot.end),
+        userEmail: user.email,
       });
+    });
+  });
 
-      if (isAvailable) {
-        availableAttendees.push(otherUser.email);
+  // 時間軸上で重複する時間帯を見つける
+  const timeSlots = new Map<string, string[]>();
+
+  // 15分刻みで時間帯をチェック
+  const minStartTime = Math.min(
+    ...allAvailableSlots.map(slot => slot.start.getTime())
+  );
+  const maxEndTime = Math.max(
+    ...allAvailableSlots.map(slot => slot.end.getTime())
+  );
+
+  for (
+    let time = minStartTime;
+    time < maxEndTime;
+    time += 15 * 60 * 1000 // 15分刻み
+  ) {
+    const timeKey = new Date(time).toISOString();
+    const availableUsers: string[] = [];
+
+    allAvailableSlots.forEach(slot => {
+      if (slot.start.getTime() <= time && slot.end.getTime() > time) {
+        if (!availableUsers.includes(slot.userEmail)) {
+          availableUsers.push(slot.userEmail);
+        }
+      }
+    });
+
+    if (availableUsers.length > 0) {
+      timeSlots.set(timeKey, availableUsers);
+    }
+  }
+
+  // 連続する時間帯を見つけて会議時間に十分な長さのスロットを作成
+  const sortedTimes = Array.from(timeSlots.keys()).sort();
+
+  for (let i = 0; i < sortedTimes.length; i++) {
+    const startTime = new Date(sortedTimes[i]);
+    const requiredEndTime = new Date(
+      startTime.getTime() + durationMinutes * 60 * 1000
+    );
+
+    // この時間帯から必要な時間分、連続して空いているユーザーを確認
+    const consistentlyAvailableUsers = timeSlots.get(sortedTimes[i]) || [];
+    let validSlot = true;
+
+    // 必要な時間分、連続してチェック
+    for (
+      let checkTime = startTime.getTime();
+      checkTime < requiredEndTime.getTime();
+      checkTime += 15 * 60 * 1000
+    ) {
+      const checkTimeKey = new Date(checkTime).toISOString();
+      const usersAtThisTime = timeSlots.get(checkTimeKey) || [];
+
+      // 最初の時間帯で空いていたユーザーが、この時間帯でも空いているかチェック
+      const stillAvailable = consistentlyAvailableUsers.filter(user =>
+        usersAtThisTime.includes(user)
+      );
+
+      if (stillAvailable.length < consistentlyAvailableUsers.length) {
+        // 一部のユーザーが空いていない場合、利用可能ユーザーを更新
+        consistentlyAvailableUsers.splice(
+          0,
+          consistentlyAvailableUsers.length,
+          ...stillAvailable
+        );
+      }
+
+      if (consistentlyAvailableUsers.length === 0) {
+        validSlot = false;
+        break;
       }
     }
 
-    // 信頼度を計算（参加可能な人数の割合）
-    const confidence = availableAttendees.length / userAvailabilities.length;
+    if (validSlot && consistentlyAvailableUsers.length > 0) {
+      const confidence =
+        consistentlyAvailableUsers.length / userAvailabilities.length;
 
-    commonSlots.push({
-      start: slot.start,
-      end: new Date(
-        slotStart.getTime() + durationMinutes * 60 * 1000
-      ).toISOString(),
-      confidence,
-      availableAttendees,
-    });
+      // 重複を避けるため、既存のスロットと重複していないかチェック
+      const isOverlapping = commonSlots.some(existing => {
+        const existingStart = new Date(existing.start);
+        const existingEnd = new Date(existing.end);
+        return startTime < existingEnd && requiredEndTime > existingStart;
+      });
+
+      if (!isOverlapping) {
+        commonSlots.push({
+          start: startTime.toISOString(),
+          end: requiredEndTime.toISOString(),
+          confidence,
+          availableAttendees: consistentlyAvailableUsers,
+        });
+      }
+    }
   }
 
-  // 信頼度順にソート
+  // 信頼度順にソートして上位5件を返す
   return commonSlots.sort((a, b) => b.confidence - a.confidence).slice(0, 5);
 }

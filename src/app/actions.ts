@@ -21,6 +21,8 @@ export interface MeetingAnalysisResult {
     requiredAttendees: string[];
     estimatedDuration: number;
     suggestedDate: string;
+    suggestedTime?: string;
+    availableAttendees?: string[];
     department?: string[];
   }>;
   message: string;
@@ -136,7 +138,61 @@ ${userList}
 
     // LLMからの構造化された応答を使用
     if (result.object) {
-      return result.object as MeetingAnalysisResult;
+      const analysisResult = result.object as MeetingAnalysisResult;
+
+      // 提案された会議に対してスケジュールチェックを実行し、実際の空き時間を取得
+      const enhancedMeetings = await Promise.all(
+        analysisResult.suggestedMeetings.map(async meeting => {
+          try {
+            // 各会議の参加者のスケジュールをチェック
+            const availability = await checkAvailability(
+              meeting.requiredAttendees,
+              meeting.suggestedDate,
+              meeting.suggestedDate,
+              meeting.estimatedDuration
+            );
+
+            // 空き時間がある場合は、最初の提案時間を使用
+            if (availability.availableSlots.length > 0) {
+              const bestSlot = availability.availableSlots[0];
+              return {
+                ...meeting,
+                suggestedDate: bestSlot.date,
+                suggestedTime: `${bestSlot.startTime}-${bestSlot.endTime}`,
+                availableAttendees: bestSlot.attendees,
+              };
+            } else {
+              // 空き時間がない場合は、デフォルト時間を使用
+              const startHour = 10;
+              const endHour =
+                startHour + Math.floor(meeting.estimatedDuration / 60);
+              const endMinute = meeting.estimatedDuration % 60;
+              return {
+                ...meeting,
+                suggestedTime: `${startHour.toString().padStart(2, '0')}:00-${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`,
+                availableAttendees: meeting.requiredAttendees,
+              };
+            }
+          } catch (error) {
+            console.error('スケジュールチェックエラー:', error);
+            // エラーの場合はデフォルト時間を使用
+            const startHour = 10;
+            const endHour =
+              startHour + Math.floor(meeting.estimatedDuration / 60);
+            const endMinute = meeting.estimatedDuration % 60;
+            return {
+              ...meeting,
+              suggestedTime: `${startHour.toString().padStart(2, '0')}:00-${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`,
+              availableAttendees: meeting.requiredAttendees,
+            };
+          }
+        })
+      );
+
+      return {
+        ...analysisResult,
+        suggestedMeetings: enhancedMeetings,
+      };
     } else {
       throw new Error('LLMからの構造化された応答を取得できませんでした。');
     }
@@ -471,6 +527,11 @@ ${contextInfo}
                       },
                       estimatedDuration: { type: 'number' },
                       suggestedDate: { type: 'string' },
+                      suggestedTime: { type: 'string' },
+                      availableAttendees: {
+                        type: 'array',
+                        items: { type: 'string' },
+                      },
                       department: { type: 'array', items: { type: 'string' } },
                     },
                     required: [
@@ -499,10 +560,74 @@ ${contextInfo}
         updatedAnalysis?: MeetingAnalysisResult;
       };
 
+      // 更新がある場合は、スケジュールチェックを実行
+      let finalUpdatedAnalysis = response.updatedAnalysis;
+      if (response.hasUpdates && response.updatedAnalysis) {
+        try {
+          // 提案された会議に対してスケジュールチェックを実行
+          const enhancedMeetings = await Promise.all(
+            response.updatedAnalysis.suggestedMeetings.map(async meeting => {
+              try {
+                // 各会議の参加者のスケジュールをチェック
+                const availability = await checkAvailability(
+                  meeting.requiredAttendees,
+                  meeting.suggestedDate,
+                  meeting.suggestedDate,
+                  meeting.estimatedDuration
+                );
+
+                // 空き時間がある場合は、最初の提案時間を使用
+                if (availability.availableSlots.length > 0) {
+                  const bestSlot = availability.availableSlots[0];
+                  return {
+                    ...meeting,
+                    suggestedDate: bestSlot.date,
+                    suggestedTime: `${bestSlot.startTime}-${bestSlot.endTime}`,
+                    availableAttendees: bestSlot.attendees,
+                  };
+                } else {
+                  // 空き時間がない場合は、デフォルト時間を使用
+                  const startHour = 10;
+                  const endHour =
+                    startHour + Math.floor(meeting.estimatedDuration / 60);
+                  const endMinute = meeting.estimatedDuration % 60;
+                  return {
+                    ...meeting,
+                    suggestedTime: `${startHour.toString().padStart(2, '0')}:00-${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`,
+                    availableAttendees: meeting.requiredAttendees,
+                  };
+                }
+              } catch (error) {
+                console.error('スケジュールチェックエラー:', error);
+                // エラーの場合はデフォルト時間を使用
+                const startHour = 10;
+                const endHour =
+                  startHour + Math.floor(meeting.estimatedDuration / 60);
+                const endMinute = meeting.estimatedDuration % 60;
+                return {
+                  ...meeting,
+                  suggestedTime: `${startHour.toString().padStart(2, '0')}:00-${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`,
+                  availableAttendees: meeting.requiredAttendees,
+                };
+              }
+            })
+          );
+
+          finalUpdatedAnalysis = {
+            ...response.updatedAnalysis,
+            suggestedMeetings: enhancedMeetings,
+          };
+        } catch (error) {
+          console.error('チャット時のスケジュールチェックエラー:', error);
+          // エラーの場合は元の分析結果を使用
+          finalUpdatedAnalysis = response.updatedAnalysis;
+        }
+      }
+
       return {
         message: response.message,
         updatedAnalysis: response.hasUpdates
-          ? response.updatedAnalysis
+          ? finalUpdatedAnalysis
           : currentAnalysis,
         actionTaken: 'chat_response',
       };

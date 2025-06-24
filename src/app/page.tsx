@@ -189,6 +189,8 @@ ${analysisResult.message}
     requiredAttendees: string[];
     estimatedDuration: number;
     suggestedDate: string;
+    suggestedTime?: string;
+    availableAttendees?: string[];
   }) => {
     setCreatingMeeting(meeting.title);
     setError(null);
@@ -479,7 +481,21 @@ ${analysisResult.message}
                                     <div className="text-gray-600">
                                       {meeting.purpose} | 参加者:{' '}
                                       {meeting.requiredAttendees.join(', ')} |
-                                      {meeting.estimatedDuration}分
+                                      {meeting.estimatedDuration}分 |
+                                      {meeting.suggestedDate}{' '}
+                                      {meeting.suggestedTime || '10:00-11:00'}
+                                      {meeting.availableAttendees &&
+                                        meeting.availableAttendees.length !==
+                                          meeting.requiredAttendees.length && (
+                                          <span className="text-amber-600 font-medium">
+                                            {' '}
+                                            (参加可能:{' '}
+                                            {meeting.availableAttendees.join(
+                                              ', '
+                                            )}
+                                            )
+                                          </span>
+                                        )}
                                     </div>
                                   </div>
                                 )
@@ -518,7 +534,7 @@ ${analysisResult.message}
                 <button
                   onClick={handleChatSubmit}
                   disabled={chatLoading || !chatInput.trim()}
-                  className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
                   送信
                 </button>
@@ -531,7 +547,7 @@ ${analysisResult.message}
                   setChatMessages([]);
                   setChatInput('');
                 }}
-                className="w-full bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600 mt-4"
+                className="w-full bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600 mt-4 cursor-pointer"
               >
                 新しい議事録で開始
               </button>
@@ -619,8 +635,23 @@ ${analysisResult.message}
                         </p>
                         <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
                           <p>参加者: {meeting.requiredAttendees.join(', ')}</p>
-                          <p>時間: {meeting.estimatedDuration}分</p>
-                          <p>予定日: {meeting.suggestedDate}</p>
+                          <p>会議時間: {meeting.estimatedDuration}分</p>
+                          <p>提案日: {meeting.suggestedDate}</p>
+                          <p>
+                            提案時刻: {meeting.suggestedTime || '10:00-11:00'}
+                          </p>
+                          {meeting.availableAttendees &&
+                            meeting.availableAttendees.length !==
+                              meeting.requiredAttendees.length && (
+                              <p className="text-amber-600 font-medium col-span-2">
+                                参加可能:{' '}
+                                {meeting.availableAttendees.join(', ')}
+                                <span className="text-gray-500">
+                                  ({meeting.availableAttendees.length}/
+                                  {meeting.requiredAttendees.length}名)
+                                </span>
+                              </p>
+                            )}
                           {meeting.department && (
                             <p>部門: {meeting.department.join(', ')}</p>
                           )}
